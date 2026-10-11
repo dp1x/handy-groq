@@ -24,8 +24,7 @@ The workflow lives at `.github/workflows/build.yml` and has three jobs:
 
   | runner                | target                       | artifact (release .zip)          |
   | --------------------- | ---------------------------- | -------------------------------- |
-  | `ubuntu-22.04`        | `x86_64-unknown-linux-gnu`   | `handy-groq-linux-amd64`         |
-  | `ubuntu-24.04`        | `aarch64-unknown-linux-gnu`  | `handy-groq-linux-arm64`         |
+  | `ubuntu-latest`       | `x86_64-unknown-linux-gnu`   | `handy-groq-linux-amd64`         |
   | `macos-14`            | `x86_64-apple-darwin`        | `handy-groq-macos-x64`           |
   | `macos-14-large`      | `aarch64-apple-darwin`       | `handy-groq-macos-arm64`         |
   | `windows-2022`        | `x86_64-pc-windows-msvc`     | `handy-groq-windows-x64`         |

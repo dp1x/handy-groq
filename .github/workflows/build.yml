@@ -30,12 +30,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
+          - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact: handy-groq-linux-amd64
-          - os: ubuntu-24.04
-            target: aarch64-unknown-linux-gnu
-            artifact: handy-groq-linux-arm64
           - os: macos-14
             target: x86_64-apple-darwin
             artifact: handy-groq-macos-x64
