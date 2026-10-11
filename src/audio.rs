@@ -14,6 +14,8 @@ use std::sync::{Arc, Mutex};
 pub struct AudioRecorder {
     stream: Option<cpal::Stream>,
     buffer: Arc<Mutex<Vec<f32>>>,
+    /// Rolling RMS amplitude values for waveform visualization (last ~50 chunks).
+    levels: Arc<Mutex<Vec<f32>>>,
     sample_rate: u32,
 }
 
@@ -22,6 +24,7 @@ impl AudioRecorder {
         Self {
             stream: None,
             buffer: Arc::new(Mutex::new(Vec::new())),
+            levels: Arc::new(Mutex::new(Vec::new())),
             sample_rate: 16000,
         }
     }
@@ -47,17 +50,30 @@ impl AudioRecorder {
         );
 
         self.buffer.lock().unwrap().clear();
+        self.levels.lock().unwrap().clear();
 
         let stream = match config.sample_format() {
-            SampleFormat::I16 => {
-                build_stream::<i16>(&device, &config.into(), self.buffer.clone(), channels)
-            }
-            SampleFormat::U16 => {
-                build_stream::<u16>(&device, &config.into(), self.buffer.clone(), channels)
-            }
-            SampleFormat::F32 => {
-                build_stream::<f32>(&device, &config.into(), self.buffer.clone(), channels)
-            }
+            SampleFormat::I16 => build_stream::<i16>(
+                &device,
+                &config.into(),
+                self.buffer.clone(),
+                self.levels.clone(),
+                channels,
+            ),
+            SampleFormat::U16 => build_stream::<u16>(
+                &device,
+                &config.into(),
+                self.buffer.clone(),
+                self.levels.clone(),
+                channels,
+            ),
+            SampleFormat::F32 => build_stream::<f32>(
+                &device,
+                &config.into(),
+                self.buffer.clone(),
+                self.levels.clone(),
+                channels,
+            ),
             _ => return Err(anyhow!("Unsupported audio sample format")),
         }
         .map_err(|e| anyhow!("Failed to build audio stream: {}", e))?;
@@ -74,7 +90,15 @@ impl AudioRecorder {
     pub fn stop(&mut self) -> (Vec<f32>, u32) {
         self.stream.take();
         let samples = std::mem::take(&mut *self.buffer.lock().unwrap());
+        self.levels.lock().unwrap().clear();
         (samples, self.sample_rate)
+    }
+
+    /// Returns the last N RMS amplitude values for waveform visualization.
+    pub fn rms_levels(&self, n: usize) -> Vec<f32> {
+        let lvls = self.levels.lock().unwrap();
+        let start = lvls.len().saturating_sub(n);
+        lvls[start..].to_vec()
     }
 }
 
@@ -83,6 +107,7 @@ fn build_stream<T>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
     buffer: Arc<Mutex<Vec<f32>>>,
+    levels: Arc<Mutex<Vec<f32>>>,
     channels: usize,
 ) -> Result<cpal::Stream, cpal::BuildStreamError>
 where
@@ -95,18 +120,43 @@ where
         config,
         move |data: &[T], _info: &cpal::InputCallbackInfo| {
             let mut buf = buffer.lock().unwrap();
+            let mut sum_sq = 0.0f32;
+            let mut count = 0;
+
             if channels == 1 {
                 // Mono — direct copy
                 for sample in data {
-                    buf.push(sample.to_sample::<f32>());
+                    let f = sample.to_sample::<f32>();
+                    sum_sq += f * f;
+                    count += 1;
+                    buf.push(f);
                 }
             } else {
                 // Multi-channel — take first channel from interleaved frames
                 for frame in data.chunks(channels) {
                     if let Some(&first) = frame.first() {
-                        buf.push(first.to_sample::<f32>());
+                        let f = first.to_sample::<f32>();
+                        sum_sq += f * f;
+                        count += 1;
+                        buf.push(f);
                     }
                 }
+            }
+
+            let rms = if count > 0 {
+                (sum_sq / count as f32).sqrt()
+            } else {
+                0.0
+            };
+
+            // Drop buffer lock before locking levels to avoid nested locks.
+            drop(buf);
+
+            let mut lvls = levels.lock().unwrap();
+            lvls.push(rms);
+            // Keep a rolling window of ~50 samples for the waveform.
+            if lvls.len() > 50 {
+                lvls.remove(0);
             }
         },
         move |err: cpal::StreamError| {
@@ -203,4 +253,24 @@ mod tests {
         let resampled = resample_to_16k(&samples, 8000);
         assert_eq!(resampled.len(), 16000); // 1 second at 16 kHz
     }
+}
+
+/// Enumerate available input (recording) devices by name.
+pub fn list_input_devices() -> Vec<String> {
+    let host = cpal::default_host();
+    host.input_devices()
+        .into_iter()
+        .flatten()
+        .filter_map(|d| d.name().ok())
+        .collect()
+}
+
+/// Enumerate available output (playback) devices by name.
+pub fn list_output_devices() -> Vec<String> {
+    let host = cpal::default_host();
+    host.output_devices()
+        .into_iter()
+        .flatten()
+        .filter_map(|d| d.name().ok())
+        .collect()
 }

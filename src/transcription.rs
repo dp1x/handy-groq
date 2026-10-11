@@ -10,9 +10,12 @@
 //! The background thread only does async I/O (HTTP). Pasting happens on the
 //! main thread because enigo/keyboard simulation works best there.
 
-use crate::{audio, groq_client::GroqClient, paste, settings::Settings, shortcut::HotkeyHandler};
+use crate::{
+    audio, groq_client::GroqClient, paste, settings::Settings, shortcut::HotkeyHandler, sound,
+};
 use log::{debug, error, info};
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::time::{Duration, Instant};
 
 /// What the app is currently doing. Drives the status display in the UI.
 #[derive(Debug, Clone, PartialEq)]
@@ -38,6 +41,16 @@ pub struct AppState {
     pub status: Status,
     pub audio: audio::AudioRecorder,
     pub hotkey_handler: Option<HotkeyHandler>,
+    /// Sound effects player (marimba + pop WAVs copied from Handy).
+    pub sound: Option<sound::SoundPlayer>,
+    /// Available input device names for the settings dropdown.
+    pub input_devices: Vec<String>,
+    /// Available output device names for the settings dropdown.
+    pub output_devices: Vec<String>,
+    /// When the "Done" status should auto-reset to Idle.
+    done_until: Option<Instant>,
+    /// When recording started (for elapsed-time display).
+    recording_start: Option<Instant>,
     // Channel for background transcription results
     result_tx: Sender<TranscriptionResult>,
     result_rx: Receiver<TranscriptionResult>,
@@ -51,6 +64,11 @@ impl AppState {
             status: Status::Idle,
             audio: audio::AudioRecorder::new(),
             hotkey_handler: None,
+            sound: sound::SoundPlayer::try_new().ok(),
+            input_devices: audio::list_input_devices(),
+            output_devices: audio::list_output_devices(),
+            done_until: None,
+            recording_start: None,
             result_tx: tx,
             result_rx: rx,
         }
@@ -95,6 +113,14 @@ impl AppState {
     /// - Hotkey press/release events → start/stop recording
     /// - Background transcription results → paste + update status
     pub fn poll(&mut self) {
+        // Auto-reset "Done" status back to Idle after a few seconds.
+        if let Some(until) = &self.done_until {
+            if Instant::now() >= *until {
+                self.status = Status::Idle;
+                self.done_until = None;
+            }
+        }
+
         // --- Poll hotkey events ---
         if let Some(handler) = &self.hotkey_handler {
             if let Some(event) = handler.poll_event() {
@@ -113,6 +139,8 @@ impl AppState {
                 TranscriptionResult::Success(text) => {
                     debug!("Transcription succeeded: {} chars", text.len());
                     self.status = Status::Done(text.clone());
+                    // Show "Done" for 5 seconds before resetting to Idle.
+                    self.done_until = Some(Instant::now() + Duration::from_secs(5));
 
                     // Paste on the main thread (enigo works best here).
                     let method = self.settings.paste_method_str();
@@ -143,6 +171,11 @@ impl AppState {
             Ok(()) => {
                 info!("Recording started");
                 self.status = Status::Recording;
+                self.recording_start = Some(Instant::now());
+                // Play the marimba sound effect (copied from Handy).
+                if let Some(sound) = &self.sound {
+                    sound.play_record_start();
+                }
             }
             Err(e) => {
                 error!("Failed to start recording: {}", e);
@@ -160,6 +193,11 @@ impl AppState {
         let (samples, rate) = self.audio.stop();
         info!("Recording stopped: {} samples @ {}Hz", samples.len(), rate);
         self.status = Status::Transcribing;
+        self.recording_start = None;
+        // Play the marimba sound effect (copied from Handy).
+        if let Some(sound) = &self.sound {
+            sound.play_record_stop();
+        }
 
         // Clone what the background thread needs.
         let tx = self.result_tx.clone();
@@ -218,6 +256,22 @@ impl AppState {
     /// Quick check — is the API key set?
     pub fn has_api_key(&self) -> bool {
         !self.settings.groq_api_key.is_empty()
+    }
+
+    /// Returns the latest RMS amplitude levels for waveform visualization.
+    pub fn rms_levels(&self, n: usize) -> Vec<f32> {
+        self.audio.rms_levels(n)
+    }
+
+    /// Whether sound effects are available (audio output device present).
+    pub fn has_sound(&self) -> bool {
+        self.sound.is_some()
+    }
+
+    /// Elapsed recording time in seconds (for the timer display).
+    pub fn elapsed_recording(&self) -> Option<f64> {
+        self.recording_start
+            .map(|start| Instant::now().duration_since(start).as_secs_f64())
     }
 }
 

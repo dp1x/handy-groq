@@ -5,6 +5,7 @@
 //! - No local models — transcription goes to Groq's Whisper API (BYOK)
 //! - Single JSON settings file in the user's config directory
 //! - Global push-to-talk keyboard shortcut (like Handy)
+//! - Sound effects (marimba + pop) copied from Handy for feedback
 //!
 //! Build: `cargo build` (or use GitHub Actions — see .github/workflows/)
 //! Docs:  README.md, BUILD.md, CONTRIBUTING.md
@@ -18,6 +19,7 @@ mod groq_client;
 mod paste;
 mod settings;
 mod shortcut;
+mod sound;
 mod transcription;
 mod ui;
 
@@ -26,11 +28,11 @@ use transcription::AppState;
 /// The eframe application. Owns the shared state.
 /// Uses Rc<RefCell> since everything runs on the main thread — no
 /// cross-thread sharing needed (background threads receive cloned data only).
-struct HandyGroqApp {
+struct HandyGroQApp {
     state: Rc<RefCell<AppState>>,
 }
 
-impl eframe::App for HandyGroqApp {
+impl eframe::App for HandyGroQApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         // One borrow per frame: poll events, then render.
         let mut state = self.state.borrow_mut();
@@ -63,14 +65,18 @@ fn main() -> eframe::Result<()> {
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("handy-groq")
-            .with_inner_size([520.0, 480.0])
-            .with_min_inner_size([400.0, 360.0]),
+            .with_inner_size([640.0, 560.0])
+            .with_min_inner_size([520.0, 460.0]),
         ..Default::default()
     };
 
     eframe::run_native(
         "handy-groq",
         native_options,
-        Box::new(|_cc| Ok(Box::new(HandyGroqApp { state }))),
+        Box::new(|cc| {
+            // Apply the industrial gray theme (old Windows / Fruitiger Aero style).
+            cc.egui_ctx.set_visuals(ui::industrial_gray_theme());
+            Ok(Box::new(HandyGroQApp { state }))
+        }),
     )
 }

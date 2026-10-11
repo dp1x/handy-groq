@@ -74,6 +74,12 @@ pub struct Settings {
     /// Start automatically when the user logs in?
     #[serde(default)]
     pub autostart: bool,
+    /// Selected microphone device name (empty = OS default).
+    #[serde(default)]
+    pub selected_mic: String,
+    /// Selected output device for sound effects (empty = OS default).
+    #[serde(default)]
+    pub selected_output: String,
 }
 
 fn default_auto_submit_key() -> String {
@@ -98,6 +104,8 @@ impl Default for Settings {
             show_overlay: true,
             start_hidden: false,
             autostart: false,
+            selected_mic: String::new(),
+            selected_output: String::new(),
         }
     }
 }
