@@ -1,0 +1,49 @@
+[package]
+name = "handy-groq"
+version = "1.0.0"
+edition = "2021"
+description = "Lean speech-to-text dictation via Groq Whisper API. No local models, no webview."
+license = "MIT"
+
+[dependencies]
+# GUI — pure Rust, no WebKit, no Tauri
+eframe = "0.36"
+
+# Audio capture (16 kHz mono f32)
+cpal = "0.16"
+hound = "3.5"
+
+# HTTP client for Groq Whisper API
+reqwest = { version = "0.12", features = ["json", "multipart", "native-tls"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+
+# Global keyboard shortcuts (push-to-talk)
+global-hotkey = "0.8"
+
+# System paste (keyboard simulation)
+enigo = "0.6"
+
+# Clipboard (copy text before pasting)
+arboard = "3"
+
+# Settings storage (single JSON file)
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "6"
+
+# Misc
+anyhow = "1"
+log = "0.4"
+env_logger = "0.11"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+
+[[bin]]
+name = "handy-groq"
+path = "src/main.rs"
