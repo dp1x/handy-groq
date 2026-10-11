@@ -228,7 +228,7 @@ mod tests {
     #[test]
     fn test_status_transitions() {
         let settings = Settings::default();
-        let mut state = AppState::new(settings);
+        let state = AppState::new(settings);
         assert_eq!(state.status, Status::Idle);
     }
 }

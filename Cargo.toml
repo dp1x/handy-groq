@@ -44,6 +44,10 @@ lto = true
 codegen-units = 1
 strip = true
 
+# Reduces debug info to avoid LNK1140 (PDB limit) on Windows MSVC debug builds.
+[profile.dev]
+debug = "line-tables-only"
+
 [[bin]]
 name = "handy-groq"
 path = "src/main.rs"

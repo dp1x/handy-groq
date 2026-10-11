@@ -60,13 +60,13 @@ pub struct Settings {
     #[serde(default)]
     pub paste_method: PasteMethod,
     /// Automatically press Enter after pasting.
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub auto_submit: bool,
     /// Which key to send for auto-submit (e.g., "Enter").
     #[serde(default = "default_auto_submit_key")]
     pub auto_submit_key: String,
     /// Show the recording overlay?
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub show_overlay: bool,
     /// Start minimized (only in tray) on launch?
     #[serde(default)]
@@ -78,6 +78,10 @@ pub struct Settings {
 
 fn default_auto_submit_key() -> String {
     "Enter".to_string()
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for Settings {

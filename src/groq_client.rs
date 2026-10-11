@@ -163,11 +163,12 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_empty_api_key_returns_error() {
+    #[tokio::test]
+    async fn test_empty_api_key_returns_error() {
         let client = GroqClient::default();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let result = rt.block_on(client.transcribe("", "whisper-large-v3-turbo", "auto", &[]));
+        let result = client
+            .transcribe("", "whisper-large-v3-turbo", "auto", &[])
+            .await;
         assert_eq!(result.unwrap_err(), GroqError::NoApiKey);
     }
 }
