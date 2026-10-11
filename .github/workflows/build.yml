@@ -18,6 +18,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Cache cargo registry & build artifacts
         uses: Swatinem/rust-cache@v2
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libxcb-shape0-dev libxcb1-dev \
+            libxcb-xfixes0-dev libxkbcommon-dev libxkbcommon-x11-0 \
+            pkg-config libssl-dev
       - name: Format check
         run: cargo fmt --check
       - name: Clippy
@@ -66,7 +73,7 @@ jobs:
           mkdir -p dist
           cp target/${{ matrix.target }}/release/handy-groq* dist/ 2>/dev/null || cp target/release/handy-groq* dist/
           cd dist
-          zip -r ../artifact.zip *
+          tar -cf ../artifact.zip *
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
