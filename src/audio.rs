@@ -76,7 +76,6 @@ impl AudioRecorder {
         let samples = std::mem::take(&mut *self.buffer.lock().unwrap());
         (samples, self.sample_rate)
     }
-
 }
 
 /// Build a cpal input stream that captures samples and converts to f32.
